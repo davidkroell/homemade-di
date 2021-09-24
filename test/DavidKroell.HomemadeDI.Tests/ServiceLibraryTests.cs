@@ -69,6 +69,20 @@ namespace DavidKroell.HomemadeDI.Tests
         }
 
         [Test]
+        public void GetService_MultipleDependencies_Works()
+        {
+            var sl = new ServiceLibrary();
+
+            sl.Map<ITestService, TestServiceWithMultiDependency>();
+            sl.Map<ITestDependencyX, TestDependencyX>();
+            sl.Map<ITestDependencyY, TestDependencyY>();
+
+            var service = sl.GetService<ITestService>();
+
+            service.Dummy();
+        }
+
+        [Test]
         public void GetService_NestedDependency_Works()
         {
             var sl = new ServiceLibrary();
