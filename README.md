@@ -12,10 +12,10 @@ nor he fully understood why all of them are using it.
 
 Once, I've been this developer, but now I'm one of the seniors who believe that dependency injection (DI)
 is a very important and useful concept we all should be familiar with.
-Then I sometimes thought how hard could it be to create a DI myself?
-How hard could it be to create some instances of classes which are registered at first?
+Then I sometimes thought how hard could it be to create a DI framework myself?
+How hard could it be to create some instances of classes which are registered first?
 It's not magic, neither is it hard.
-I'd like to show you now how to do it, maybe it helps you for your understanding.
+I'd like to show you now how to do it - and maybe it will help you understand it better.
 
 ## Why Dependency Injection?
 
@@ -36,23 +36,23 @@ public class PeopleService
 }
 ```
 
-The problem here is the creation dependency (`new`) to `PeopleRepository` (hard reference).
+The problem here is the creation dependency (the `new` keyword) to `PeopleRepository`.
 
 ![Hard and direct (bad) dependency between classes](docs/hard-dependency.png)
 
 *Hard and direct (bad) dependency between classes*
 
 Therefore a hard coupling between `PeopleService` and `PeopleRepository` is created.
-Whenever a PeopleService gets created, also a PeopleRepository get created.
+Whenever a PeopleService gets created, also a `PeopleRepository` instance gets created.
 Exactly this PeopleRepository is instantiated and there is no change to supply another implementation.
-Hard coupling, as mentioned before.
+Hard coupling between these two is the result.
 
 We don't want this due to various reasons.
-First of all, it's bad for code quality, as the quality attributes `testability` and `changeability`
+First of all, it's bad for code quality, as the quality attributes **testability** and **changeability**
 cannot be met.
 
-As a result, we cannot provide a mock instance to this `PeopleService` in order to write a unit-test for it.
-The solution to this problem is to pull the creation dependency (the `new`) up, to the user
+Furthermore, we cannot provide a mock instance to the `PeopleService` in order to write a unit test for it.
+The solution to this problem is to pull the creation dependency (the `new`) up to the user
 of the `PeopleService`.
 
 ![The dependency is now inversed, it's the responsibility of whoever wants to use the
@@ -77,7 +77,8 @@ public class PeopleService
 
 As you can infer from the naming, we'll use an interface type here as dependency,
 in order to allow also supplying other implementations (e.g. for testing)
-to `PeopleService` to work with.
+to `PeopleService` to rely on.
+It is also more clear which other classes are required for the `PeopleService` to work correctly.
 
 ```c#
 var peopleService = new PeopleService(new PeopleRepository());
@@ -87,23 +88,23 @@ var peopleService = new PeopleService(new MockPeopleRepository());
 
 ## Dependency Injection basics
 
-Imagine you apply the **Dependency Inversion Principle** everywhere across your whole app.
+Imagine you apply the **Dependency Inversion Principle** everywhere across your app.
 At some point, all the instances of your classes have to be instantiated and passed to the dependent classes.
 
 ![A dependency tree](docs/dependency-tree.png)
 
 *A dependency tree*
 
-You need A and B to create a PeopleService, but in order to create `A` you need `A1` and `A2`, and so on.
+You need `A` and `B` to create a PeopleService, but in order to create `A` you need `A1` and `A2`, and so on.
 As you can see in the above graphic, a dependency tree arises.
 Therefore, you have to start at the bottom where no dependencies are required (`A11` and `A12` here)
 and work your way up, until you got a `PeopleService`.
 
+If something is added, removed or moved around inside this tree, you have to adjust it yourself.
+Especially for large-scale applications with hundreds of classes this soon gets
+impractical and unmaintainable (again, a quality attribute).
 
-If something is added, removed or moved inside this tree, you have to adjust it yourself.
-This is especially impractical in large-scale applications with hundreds of classes.
-
-This is where dependency injection comes in. It's a technique which creates these instances for you and
+This is where dependency injection comes to the rescue. It's a technique which creates these instances for you and
 copes with all it's dependencies. The only thing you'd like to do is to have a small library
 which you can call: I'd like to have an instance of `PeopleService`, could you give me some?
 
@@ -112,26 +113,33 @@ var peopleService = serviceLibrary.GetService<PeopleService>();
 ```
 
 Still assuming we use interfaces as constructor parameters (to be more flexible, you remember)
-we have to tell the DI framework which implementations should be used behind this interfaces.
-We'll have to register in the first place which implementation should be used for which interface.
+we have to tell the DI framework which concrete implementations will be behind them.
+We have to register in the first place which implementation should be used for which interface,
+because there can be different implementations for different scenarios.
 
 This will result in a table-like structure with a mapping from the interface-type to the implementation-type.
+
+| Interface | Implementation |
+| --- | --- |
+| IPeopleService | PeopleService |
+| IPeopleRepository | PeopleRepository |
+| ITestDependencyX | TestDependencyX |
 
 ## Implementation
 
 There are two different use-cases for a DI framework to cover:
 
 * mapping a interface-implementation type pair
-* resolving a service instance from it
+* resolving a instance from it, based on a interface type
 
 I'll call my dependency injection framework `ServiceLibrary`.
 Only a single class will be used, since it does not get too much code.
-In consequence all the code snippets below are inside the `ServiceLibrary` class.
+In consequence all the code snippets below reside in the `ServiceLibrary` class.
 
 ### Mapping types
 
 We'll start off with the easy part.
-As you can see below, the basic implementation is very easy.
+As you can see below, the basic implementation is very simple.
 
 ```c#
 private readonly Dictionary<Type, Type> _mappings = new();
@@ -143,7 +151,6 @@ public void Map(Type interfaceType, Type implementationType)
 
 // generic method for easier use
 public void Map<TInterface, TImpl>()
-    where TImpl : TInterface
 {
     var interfaceType = typeof(TInterface);
     var implementationType = typeof(TImpl);
@@ -155,6 +162,7 @@ public void Map<TInterface, TImpl>()
 Of course additional checks can be added to this snippet, for example:
 * Is this interface already registered?
 * Does the implementation type even implement this interface?
+* Is it possible to create a instance of the implementation type?
 
 
 ### Resolving mapped types
@@ -172,6 +180,7 @@ The above explanation is summarized in the following graphic:
 
 This is possible by using reflection, since all dependencies are listed inside
 the constructor and C# allows us to scan the constructor definition of any type.
+How this works in code is shown below.
 
 ```c#
 private Type[] GetDependentTypes(Type implType)
@@ -195,7 +204,7 @@ private Type[] GetDependentTypes(Type implType)
 
 The below snippet shows how the creation of the instances is done.
 It's implemented in a recursive manner because of the tree-structure which
-may result depending on which types have to be resolved.
+may result depending on which types you register upfront.
 
 ```c#
 public object GetService(Type type)
@@ -223,9 +232,8 @@ public object GetService(Type type)
 }
 ```
 
-I left some null-handling and edge-cases here, but basically that's it.
-
-You can now add an generic method to make the library more easy to use:
+I left out some null-handling and edge-cases here, but basically that's it.
+We can now add an generic method to make the library more easy to use:
 
 ```c#
 public T GetService<T>()
@@ -256,11 +264,12 @@ var peopleService = sl.GetService<IPeopleService>();
 
 ## Conclusion
 
-I haven't thought implementing a fully functional DI framework would be so easy upfront.
-But the more I thought about it, the easier it got.
+I haven't thought implementing a fully functional DI framework would be so straightforward upfront.
+However the more I thought about it, the easier it got.
 Nevertheless there are more use-cases which can be covered with DI,
 for example service lifetime management (singletons) just to name one.
 
 I hope the concept of dependency injection is clear to you now.
-Feel free to look up the final code.
+Feel free to look up the final code as I worked a little bit on it
+for improvements and also tested it for the various use-cases. 
 
