@@ -1,7 +1,9 @@
 # homemade-di
 
 This project is a demo for a do-it-yourself dependency injection framework for `dotnet`.
-I've written this for educational purpose.
+I've created this for educational purpose.
+
+I also written about this topic in my blog: https://davidkroell.com/blog/2021/homemade-di-the-hows-and-whys-of-dependency-injection/
 
 ## Purpose of this
 
@@ -52,7 +54,7 @@ First of all, it's bad for code quality, as the quality attributes **testability
 cannot be met.
 
 Furthermore, we cannot provide a mock instance to the `PeopleService` in order to write a unit test for it.
-The solution to this problem is to pull the creation dependency (the `new`) up to the user
+The solution to this problem is to pull the creation dependency (the `new`) up to the consumer
 of the `PeopleService`.
 
 ![The dependency is now inversed, it's the responsibility of whoever wants to use the
